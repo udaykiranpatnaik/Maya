@@ -26,7 +26,7 @@ class TestUI(object):
         cmds.button( label='Export Selected Static Mesh',w=220,command=lambda *_:ExportStaticMeshes())
         cmds.button( label='Export Selected Skinned Mesh',w=220,command=lambda *_:ExportSkeletalMeshes())
         cmds.button( label='Export  Character Mesh',w=220,command=lambda *_:ExportCharacterBaseMesh())
-        cmds.button( label='Export  Bicycle Mesh',w=220,command='')
+        cmds.button( label='Export  Bicycle Mesh',w=220,command=lambda *_:ExportBicycleMesh())
     
         cmds.showWindow(main_window)
     
@@ -122,7 +122,6 @@ def removeSelectedObject():
 
 def ExportFBXSkinned(filename):
     mel.eval('FBXExportInAscii -v true;')
-    mel.eval('FBXExportInputConnections -v true;')
     mel.eval('FBXExportAnimationOnly -v true;')
     mel.eval('FBXExportCameras -v false;')
     mel.eval('FBXExportLights -v  false;')
@@ -187,17 +186,63 @@ def ExportCharacterBaseMesh():
        
         # Remove Unused Nodes
         RemoveUnusedMaterialNodes()
-        
+        cmds.delete('All_Geometry')
+        cmds.select(all=True)
         multipleFilters = "FBX Files (*.fbx *.FBX)"
         saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
+        if not saveFile: return
         filename= saveFile[0]
-        if not saveFile:
-             openFile(pristineFile,False)
-        ExportFBXSkinned(filename)
+        mel.eval('FBXExport -f "' + filename + '" -s;')
+        # if not saveFile:
+        #     openFile(pristineFile,False)
+        # else:
+        #     mel.eval('FBXExport -f "' + filename + '" -s;')
+        #     #ExportFBXSkinned(filename)
+        # openFile(pristineFile,False)
+        # print(filename)
+        # cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
         
-        openFile(pristineFile,False)
-        print(filename)
-        cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
+def ExportBicycleMesh():
+    sel=cmds.ls('Bicycle*',type='mesh')
+    pristineFile = cmds.file(save=True,type='mayaAscii')
+    if len(sel) == 0:
+       cmds.confirmDialog( title='Select Required Meshes', message='Please Select Meshes to be Exported', button=['OK'], defaultButton='OK')
+    else:    
+        currentFilename = cmds.file( query=True,sceneName=True )
+        openFile(currentFilename,True)
+        biCycleArr = []
+        for bi in sel:
+            mem = cmds.listRelatives(bi,allParents=True)
+            biCycleArr.append(mem[0])
+        cmds.select('All_Geometry')
+        all_Meshes = cmds.ls(sl=True)
+        cmds.select(cl=True)
+        for x in all_Meshes:
+            if not x in biCycleArr:
+                cmds.delete(x)
+        cmds.select("Bicycle*Wheel")
+        cmds.delete()
+        
+        cmds.parent('Joints',w=True)
+        cmds.delete('Asset')
+        cmds.delete('Model')
+
+        RemoveDisplayLayers()
+        # Remove Unused Nodes
+        RemoveUnusedMaterialNodes()
+        cmds.select(all=True)
+
+        # multipleFilters = "FBX Files (*.fbx *.FBX)"
+        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
+        # filename= saveFile[0]
+        # if not saveFile:
+        #      openFile(pristineFile,False)
+
+        # mel.eval('FBXExport -f "' + filename + '" -s;')
+        # openFile(pristineFile,False)
+        # print(filename)
+            
+
         
 def ExportStaticMeshes():
     sel = cmds.ls(sl=True)
@@ -223,15 +268,15 @@ def ExportStaticMeshes():
         # Remove Unused Nodes
         RemoveUnusedMaterialNodes()
         
-        multipleFilters = "FBX Files (*.fbx *.FBX)"
-        saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        filename= saveFile[0]
-        if not saveFile:return
-        ExportFBXStatic(filename)
+        # multipleFilters = "FBX Files (*.fbx *.FBX)"
+        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
+        # filename= saveFile[0]
+        # if not saveFile:return
+        # ExportFBXStatic(filename)
         
-        openFile(pristineFile,False)
-        print(filename)
-        cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
+        # openFile(pristineFile,False)
+        # print(filename)
+        # cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
         
 def ExportSkeletalMeshes():
     sel = cmds.ls(sl=True)
@@ -241,24 +286,33 @@ def ExportSkeletalMeshes():
     else:    
         currentFilename = cmds.file( query=True,sceneName=True )
         openFile(currentFilename,True)
+        RemoveUnwantedMeshes(sel)
         cmds.bakePartialHistory(sel[0],prePostDeformers=True )
         cmds.parent(sel[0],w=True)
         cmds.parent('Joints',w=True)
         cmds.delete('Asset')
+        cmds.delete('Model')
+        cmds.delete('All_Geometry')
+        # Remove Display Layers
+        RemoveDisplayLayers()
 
         # Remove Unused Nodes
         RemoveUnusedMaterialNodes()
-        cmds.select(sel[0],r=True)
-        multipleFilters = "FBX Files (*.fbx *.FBX)"
-        saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        filename= saveFile[0]
-        if not saveFile:
-             openFile(pristineFile,False)
-        mel.eval('FBXExport -f "' + filename + '" -s;')
         
-        openFile(pristineFile,False)
-        print(filename)
-        cmds.confirmDialog( title='Message', message='Skinned Mesh exported Successfully', button=['OK'], defaultButton='OK')
+        cmds.select(sel[0],r=True)
+        
+        # multipleFilters = "FBX Files (*.fbx *.FBX)"
+        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
+        # filename= saveFile[0]
+        # if not saveFile:
+        #     return
+        # else :
+        #     #ExportFBXSkinned(filename)
+        #     mel.eval('FBXExportSkins -v true;')
+        #     mel.eval('FBXExport -f "' + filename + '" -s;')
+        # openFile(pristineFile,False)
+        # print(filename)
+        # cmds.confirmDialog( title='Message', message='Skinned Mesh exported Successfully', button=['OK'], defaultButton='OK')
 
 
 
