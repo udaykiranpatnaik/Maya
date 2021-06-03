@@ -4,7 +4,7 @@ import os
 
 class TestUI(object):
     
-    WINDOW_NAME = "czTestUi"
+    WINDOW_NAME = "Export FBX Files"
     WINDOW_HEIGHT=200
     WINDOW_WIDTH=55
     FORM_OFFSET = 2
@@ -13,20 +13,28 @@ class TestUI(object):
     def display(cls):
         cls.delete_window()
         
-        main_window = cmds.window(cls.WINDOW_NAME, title=cls.WINDOW_NAME, widthHeight=(cls.WINDOW_WIDTH, cls.WINDOW_HEIGHT), rtf=True)        
+        main_window = cmds.window(cls.WINDOW_NAME, title=cls.WINDOW_NAME, widthHeight=(cls.WINDOW_WIDTH, cls.WINDOW_HEIGHT), rtf=True)
         main_layout = cmds.columnLayout( adjustableColumn=True,parent=main_window,columnWidth=50,rowSpacing=25)
         
-        prepare_fbx_layout = cmds.frameLayout( label=' Prepare Model for Export',collapsable=True,parent=main_layout)
-        cmds.columnLayout( adjustableColumn=True,parent=prepare_fbx_layout,columnWidth=50)
-        cmds.button( label='Prepare File',w=220,command=lambda *_:PrepareFile())
-        cmds.columnLayout( adjustableColumn=True,parent=prepare_fbx_layout,columnWidth=50)
-        cmds.button( label='Remove Nodes',w=220,command=lambda *_:removeJoints())
+        prepare_fbx_layout = cmds.frameLayout( label=' Prepare Model for Export',collapsable=False,parent=main_layout)
+        cmds.text( label='Steps', align='center' )
+        cmds.text( label='1. Set Save Directory', align='center' )
+        cmds.text( label='2. Prepare File', align='center' )
+        cmds.text( label='3. Use Export buttons as necessary', align='center' )
+        cmds.separator( height=20, style='out' )
+        cmds.setParent( '..' )
+        col_1 = cmds.columnLayout( adjustableColumn=True,parent=prepare_fbx_layout,columnWidth=50,rowSpacing=5)
+        cmds.button( label='Set Save Directory',w=220,command=lambda *_:SetExportDirectory(),parent=prepare_fbx_layout)
+        cmds.button( label='Prepare File',w=220,command=lambda *_:PrepareFile(),parent=prepare_fbx_layout)
+         
+        export_fbx_layout = cmds.frameLayout( label=' FBX Mesh Export',collapsable=False,parent=main_layout,marginHeight=15)
         
-        export_fbx_layour = cmds.frameLayout( label=' FBX Mesh Export',collapsable=True,parent=main_layout)
-        cmds.button( label='Export Selected Static Mesh',w=220,command=lambda *_:ExportStaticMeshes())
-        cmds.button( label='Export Selected Skinned Mesh',w=220,command=lambda *_:ExportSkeletalMeshes())
-        cmds.button( label='Export  Character Mesh',w=220,command=lambda *_:ExportCharacterBaseMesh())
-        cmds.button( label='Export  Bicycle Mesh',w=220,command=lambda *_:ExportBicycleMesh())
+        col_1 = cmds.columnLayout( adjustableColumn=True,parent=prepare_fbx_layout,columnWidth=50,rowSpacing=5)
+        cmds.button( label='Export Selected Static Mesh',w=220,command=lambda *_:ExportStaticMeshes(),parent=export_fbx_layout)
+        cmds.button( label='Export Selected Skinned Mesh',w=220,command=lambda *_:ExportSkeletalMeshes(),parent=export_fbx_layout)
+        cmds.button( label='Export  Character Mesh',w=220,command=lambda *_:ExportCharacterBaseMesh(),parent=export_fbx_layout)
+        cmds.button( label='Export  Bicycle Mesh',w=220,command=lambda *_:ExportBicycleMesh(),parent=export_fbx_layout)
+
     
         cmds.showWindow(main_window)
     
@@ -75,6 +83,16 @@ def getCharacterNodes(char):
 
 
 
+
+def SetExportDirectory():
+    global EXPORT_DIRECTORY
+    EXPORT_DIRECTORY = cmds.fileDialog2(dialogStyle=4,fileMode=3,okCaption='Select')[0]
+    print("EXPORT_DIRECTORY : %s" % EXPORT_DIRECTORY)
+    
+
+def TestGlobal():
+    print (exportDirectory)
+
 def PrepareFile():
     saveTempFile()
     BakeHumanIK()
@@ -99,13 +117,20 @@ def openFile(filename,imp):
     else:
         cmds.file(filename, i=True)
 
+def createDirectory(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
 def saveTempFile():
-    savePath= "C:/Users/BOXX/Desktop/EXPORT_TEST"
+    #pathString = os.path.join(EXPORT_DIRECTORY,"TEMP_EXPORT")
+    savePath = EXPORT_DIRECTORY
     gFile = getFilename()
     saveName = gFile['filename'].split(".")[0]
     saveFile = os.path.join(savePath,saveName)
     cmds.file(rename=saveFile)
     cmds.file(save=True,type='mayaAscii')
+
 
 def removeJoints():
     endJointsList = ['HeadTop_End','LeftHandThumb4','LeftHandIndex4','LeftHandRing4','RightHandThumb4','RightHandIndex4','RightHandRing4','LeftToe_End','RightToe_End']
@@ -154,6 +179,22 @@ def RemoveUnusedMaterialNodes():
     mel.eval('hyperShadePanelMenuCommand("hyperShadePanel1", "deleteUnusedNodes");')  
     
 
+def ExportFile(pristineFile):
+    result = cmds.promptDialog(
+        title='Rename Object',
+        message='Enter Name:',
+        button=['OK', 'Cancel'],
+        defaultButton='OK',
+        cancelButton='Cancel',
+        dismissString='Cancel')
+        
+    if result == 'OK':
+        saveFilename = cmds.promptDialog(query=True, text=True)
+        print(saveFilename)
+        ExportFBX(saveFilename)
+    openFile(pristineFile,False)
+
+
 def ExportCharacterBaseMesh():
     sel = cmds.ls(sl=True)
     pristineFile = cmds.file(save=True,type='mayaAscii')
@@ -165,8 +206,11 @@ def ExportCharacterBaseMesh():
        
         # Remove Bicycle Meshes
         bi = cmds.ls('Bicycle*',type='mesh')
-        cmds.delete(bi)
-        cmds.select(cl=True)
+        cmds.select('All_Geometry')
+        all_Meshes = cmds.ls(sl=True)
+        for x in all_Meshes:
+            if not x in sel:
+                cmds.delete(x)
         
         # Remove unwanted Meshes
         RemoveUnwantedMeshes(sel)
@@ -174,7 +218,6 @@ def ExportCharacterBaseMesh():
         # Remove Display Layers
         RemoveDisplayLayers()
             
-
         # Bake Non Deformer History and Unparent Joints and Meshes
         for node in sel:
             cmds.bakePartialHistory(node,prePostDeformers=True )
@@ -188,19 +231,7 @@ def ExportCharacterBaseMesh():
         RemoveUnusedMaterialNodes()
         cmds.delete('All_Geometry')
         cmds.select(all=True)
-        multipleFilters = "FBX Files (*.fbx *.FBX)"
-        saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        if not saveFile: return
-        filename= saveFile[0]
-        mel.eval('FBXExport -f "' + filename + '" -s;')
-        # if not saveFile:
-        #     openFile(pristineFile,False)
-        # else:
-        #     mel.eval('FBXExport -f "' + filename + '" -s;')
-        #     #ExportFBXSkinned(filename)
-        # openFile(pristineFile,False)
-        # print(filename)
-        # cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
+        ExportFile(pristineFile)
         
 def ExportBicycleMesh():
     sel=cmds.ls('Bicycle*',type='mesh')
@@ -229,19 +260,13 @@ def ExportBicycleMesh():
 
         RemoveDisplayLayers()
         # Remove Unused Nodes
+        
         RemoveUnusedMaterialNodes()
         cmds.select(all=True)
+        #cmds.delete('All_Geometry')
+        cmds.select(all=True)
+        ExportFile(pristineFile)
 
-        # multipleFilters = "FBX Files (*.fbx *.FBX)"
-        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        # filename= saveFile[0]
-        # if not saveFile:
-        #      openFile(pristineFile,False)
-
-        # mel.eval('FBXExport -f "' + filename + '" -s;')
-        # openFile(pristineFile,False)
-        # print(filename)
-            
 
         
 def ExportStaticMeshes():
@@ -267,16 +292,9 @@ def ExportStaticMeshes():
             
         # Remove Unused Nodes
         RemoveUnusedMaterialNodes()
+        ExportFile(pristineFile)
         
-        # multipleFilters = "FBX Files (*.fbx *.FBX)"
-        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        # filename= saveFile[0]
-        # if not saveFile:return
-        # ExportFBXStatic(filename)
-        
-        # openFile(pristineFile,False)
-        # print(filename)
-        # cmds.confirmDialog( title='Message', message='Character Mesh exported Successfully', button=['OK'], defaultButton='OK')
+
         
 def ExportSkeletalMeshes():
     sel = cmds.ls(sl=True)
@@ -301,21 +319,19 @@ def ExportSkeletalMeshes():
         
         cmds.select(sel[0],r=True)
         
-        # multipleFilters = "FBX Files (*.fbx *.FBX)"
-        # saveFile = cmds.fileDialog2(fileFilter=multipleFilters, dialogStyle=2)
-        # filename= saveFile[0]
-        # if not saveFile:
-        #     return
-        # else :
-        #     #ExportFBXSkinned(filename)
-        #     mel.eval('FBXExportSkins -v true;')
-        #     mel.eval('FBXExport -f "' + filename + '" -s;')
-        # openFile(pristineFile,False)
-        # print(filename)
-        # cmds.confirmDialog( title='Message', message='Skinned Mesh exported Successfully', button=['OK'], defaultButton='OK')
+        ExportFile(pristineFile)
 
 
-
+def ExportFBX(fileName):
+    path = EXPORT_DIRECTORY + "/" + "FBX"
+    savePath = createDirectory(path)
+    savefile = savePath + "/" + fileName+".fbx"
+    print(savefile)
+    mel.eval('FBXExportCameras -v false;')
+    mel.eval('FBXExportLights -v  false;')
+    mel.eval('FBXExportSkins -v true;')
+    mel.eval('FBXExportSmoothingGroups -v true;')
+    mel.eval('FBXExport -f "'+savefile+'" -s')
 
         
 if __name__ == "__main__":
