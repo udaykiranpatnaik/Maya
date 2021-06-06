@@ -15,7 +15,6 @@ class TestUI(object):
         
         main_window = cmds.window(cls.WINDOW_NAME, title=cls.WINDOW_NAME, widthHeight=(cls.WINDOW_WIDTH, cls.WINDOW_HEIGHT), rtf=True)
         main_layout = cmds.columnLayout( adjustableColumn=True,parent=main_window,columnWidth=50,rowSpacing=25)
-        
         prepare_fbx_layout = cmds.frameLayout( label=' Prepare Model for Export',collapsable=False,parent=main_layout)
         cmds.text( label='Steps', align='center' )
         cmds.text( label='1. Set Save Directory', align='center' )
